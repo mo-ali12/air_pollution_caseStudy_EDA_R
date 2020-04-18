@@ -1,0 +1,302 @@
+---
+title: "Air Pollution Case Study"
+output: html_notebook
+---
+
+Reading Data:
+
+```{r}
+pm.25_1990 <- read.table("C:/Users/Mohsin Ali/Desktop/Work/Data Sciecne/NoteBooks/R/Datasets/air pollution/RD_501_88101_1999-0.txt", comment.char = "#", header = FALSE, sep = "|", na.strings = "")
+
+pm.25_2012 <- read.table("C:/Users/Mohsin Ali/Desktop/Work/Data Sciecne/NoteBooks/R/Datasets/air pollution/RD_501_88101_2012-0.txt", comment.char = "#", header = FALSE, sep = "|", na.strings = "")
+
+
+```
+
+Gettting the general sense of Data:
+
+```{r}
+
+head(pm.25_1990)
+dim(pm.25_1990)
+
+# column names
+
+cnames <- readLines("C:/Users/Mohsin Ali/Desktop/Work/Data Sciecne/NoteBooks/R/Datasets/air pollution/RD_501_88101_1999-0.txt", 1)
+
+# split all the names out
+
+cnames <- strsplit(cnames, "|", fixed = TRUE)
+cnames
+
+names(pm.25_1990) <- make.names(cnames[[1]])  #make.names take random string and repalce it with spaces to make column names valid.
+
+pm.25_1990
+
+
+```
+
+```{r}
+#taking pm25 (dust in the air) varaiable bacuse that's what we are intrested to see in this case study.
+
+x0 <- pm.25_1990$Sample.Value
+
+class(x0)
+str(x0)
+summary(x0)
+
+mean(is.na(x0))  # percentage of missing values.
+
+```
+
+```{r}
+# pm_2012 data 
+
+dim(pm.25_2012)
+
+cnames <- readLines("C:/Users/Mohsin Ali/Desktop/Work/Data Sciecne/NoteBooks/R/Datasets/air pollution/RD_501_88101_2012-0.txt", 1)
+
+# split all the names out
+
+cnames <- strsplit(cnames, "|", fixed = TRUE)
+cnames
+
+names(pm.25_2012) <- make.names(cnames[[1]])  #make.names take random string and repalce it with spaces to make column names valid.
+
+#pm.25_2012
+
+
+#taking pm25 (dust in the air) varaiable bacuse that's what we are intrested to see in this case study.
+
+x1 <- pm.25_2012$Sample.Value
+
+class(x1)
+str(x1)
+summary(x1)
+
+mean(is.na(x1))  # percentage of missing values.
+
+
+```
+
+```{r}
+boxplot(x0, x1) # data is skewed so we take a log
+
+boxplot(log10(x0), log10(x1))
+
+# we can see that there are many outliers and also that in 2012 (2 plot) shows decrease in pollution.
+```
+
+```{r}
+# there are negative values which is strange, let's explore that
+
+neg <- x1 <0
+
+str(neg)
+
+sum(neg, na.rm = TRUE)
+
+mean(neg, na.rm = TRUE)
+
+# so only 2% of the data has negitive values which can be ignored
+
+
+```
+
+```{r}
+# we can check if dates on which the negative values/ observations occur for that we will extract the date column
+
+dates <- pm.25_2012$Date
+str(dates)
+
+#converting dates from int to dates type for plotting
+
+dates <- as.Date(as.character(dates), "%Y%m%d")
+str(dates)
+
+
+#histogram to check the what months have more observations recorded
+
+hist(dates, "month")
+
+# to check the what months have more negative observations recorded
+
+hist(dates[neg], "month")
+
+
+```
+
+```{r}
+#now what we want to know is how single monitor is recording and how the changes between 1990 and 2012 look on a same monitor
+
+library(dplyr)
+
+site0 <- pm.25_1990 %>%
+  filter(State.Code == 36)%>%
+  select(County.Code, Site.ID)
+
+site1 <- pm.25_2012 %>%
+  filter(State.Code == 36)%>%
+  select(County.Code, Site.ID)
+
+head(site0)
+
+#combining State code and country code.
+
+site0 <- paste(site0[,1], site0[,2], sep = ".")
+site1 <- paste(site1[,1], site1[,2], sep = ".")
+
+str(site0)
+str(site1)
+
+# finding a common monitors in both datasets i.e. in 1990 and 2012
+
+both <- intersect(site0, site1)
+both
+
+#so there are 10 monitors which were in 1990 in the satate of NY and are still there recording in 2012
+
+```
+
+```{r}
+#now we will create a new vriable in both orignal datasets, the variables are same as above "country,code and site.id" pasted togather
+
+pm.25_1990 <- pm.25_1990 %>%
+  mutate(county.site = paste(County.Code, Site.ID, sep = "."))
+
+pm.25_2012 <- pm.25_2012 %>%
+  mutate(county.site = paste(County.Code, Site.ID, sep = "."))
+
+head(pm.25_1990)
+
+#filter out only the dataset with city newyork (36 code) and present in both (1990 and 2012)
+
+cnt0 <- pm.25_1990 %>%
+  filter(State.Code == 36, county.site %in% both)
+
+cnt1 <- pm.25_2012%>%
+  filter(State.Code == 36, county.site %in% both)
+
+cnt0
+cnt1
+
+#checking no. of observations for these monitors
+
+cnt0 %>%
+  select(county.site)%>%
+  count(county.site)
+
+cnt1 %>%
+  select(county.site)%>%
+  count(county.site)
+
+#checking a specific monitor, let's pick 63.2008 monitor
+
+pm1sub <- pm.25_1990%>%
+  filter(State.Code == 36 & County.Code == 63 & Site.ID == 2008)
+
+pm2sub <- pm.25_2012%>%
+  filter(State.Code == 36 & County.Code == 63 & Site.ID == 2008)
+  
+
+dim(pm1sub)
+dim(pm2sub)
+
+```
+
+
+# we will now plot this monitor data to check if the pm value decreased or increased over time (time series)
+
+```{r}
+dates1 <- pm1sub$Date
+x1sub <- pm1sub$Sample.Value
+plot(dates1, x1sub) # not in date format
+
+#converting in date format
+
+dates1 <- as.Date(as.character(dates1), "%Y%m%d")
+str(dates1)
+
+plot(dates1, x1sub)
+
+# doing the same for 2012 data
+
+dates2 <- pm2sub$Date
+x2sub <- pm2sub$Sample.Value
+
+#converting in date format
+
+dates2 <- as.Date(as.character(dates2), "%Y%m%d")
+
+plot(dates2, x2sub)
+
+```
+
+
+```{r}
+# creating panels to look at data in one panel
+
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+
+plot(dates1, x1sub, pch = 20)
+
+abline(h = median(x1sub, na.rm = T))
+
+# 2012 data
+
+plot(dates2, x2sub, pch = 20)
+
+abline(h = median(x2sub, na.rm = T))
+
+# plots are not on same range (y axis) it is miss leading, so we will set the same range for both plots using ylim
+
+rng <- range(x1sub, x2sub, na.rm = T)
+
+par(mfrow = c(1,2))
+
+plot(dates1, x1sub, ylim = rng)
+
+abline(h = median(x1sub, na.rm = T))
+
+
+#same thing for 2012 data
+
+plot(dates2, x2sub, ylim = rng)
+
+abline(h = median(x2sub, na.rm = T))
+
+
+```
+
+```{r}
+#it would be intresting to look at pm2.5 values at a state level tp determine if they are going up or down over the period of time.
+
+state_mean <- pm.25_1990 %>%
+  group_by(State = State.Code)%>%
+  summarise(mean = mean(Sample.Value, na.rm = T))
+
+str(state_mean)
+
+summary(state_mean)
+
+
+# same for 2012
+
+state_mean2 <- pm.25_2012 %>%
+  group_by(State = State.Code)%>%
+  summarise(mean = mean(Sample.Value, na.rm = T))
+
+str(state_mean2)
+
+summary(state_mean2)
+
+#merging two data frames into one
+
+mrg <- merge(state_mean, state_mean2, by = "State")
+
+head(mrg)
+
+
+
+```
+
